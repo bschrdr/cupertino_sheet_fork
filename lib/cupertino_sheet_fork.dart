@@ -160,26 +160,26 @@ Future<T?> showCupertinoSheet<T>({
           initialRoute: '/',
           onGenerateInitialRoutes:
               (NavigatorState navigator, String initialRouteName) {
-            return <Route<void>>[
-              CupertinoPageRoute<void>(
-                builder: (BuildContext context) {
-                  return PopScope(
-                    canPop: false,
-                    onPopInvokedWithResult: (bool didPop, Object? result) {
-                      if (didPop) {
-                        return;
-                      }
-                      Navigator.of(
-                        context,
-                        rootNavigator: true,
-                      ).pop(result);
+                return <Route<void>>[
+                  CupertinoPageRoute<void>(
+                    builder: (BuildContext context) {
+                      return PopScope(
+                        canPop: false,
+                        onPopInvokedWithResult: (bool didPop, Object? result) {
+                          if (didPop) {
+                            return;
+                          }
+                          Navigator.of(
+                            context,
+                            rootNavigator: true,
+                          ).pop(result);
+                        },
+                        child: pageBuilder(context),
+                      );
                     },
-                    child: pageBuilder(context),
-                  );
-                },
-              ),
-            ];
-          },
+                  ),
+                ];
+              },
         ),
       );
     };
@@ -250,20 +250,20 @@ class CupertinoSheetTransition extends StatefulWidget {
 
     final double deviceCornerRadius =
         (MediaQuery.maybeViewPaddingOf(context)?.top ?? 0) *
-            _kDeviceCornerRadiusSmoothingFactor;
+        _kDeviceCornerRadiusSmoothingFactor;
     final bool roundedDeviceCorners =
         deviceCornerRadius > _kRoundedDeviceCornersThreshold;
 
     final Animatable<BorderRadiusGeometry> decorationTween =
         Tween<BorderRadiusGeometry>(
-      begin: BorderRadius.vertical(
-        top: Radius.circular(roundedDeviceCorners ? deviceCornerRadius : 0),
-      ),
-      end: BorderRadius.circular(12),
-    );
+          begin: BorderRadius.vertical(
+            top: Radius.circular(roundedDeviceCorners ? deviceCornerRadius : 0),
+          ),
+          end: BorderRadius.circular(12),
+        );
 
-    final Animation<BorderRadiusGeometry> radiusAnimation =
-        curvedAnimation.drive(decorationTween);
+    final Animation<BorderRadiusGeometry> radiusAnimation = curvedAnimation
+        .drive(decorationTween);
     final Animation<double> opacityAnimation = curvedAnimation.drive(
       _kOpacityTween,
     );
@@ -277,24 +277,25 @@ class CupertinoSheetTransition extends StatefulWidget {
 
     final bool isDarkMode =
         CupertinoTheme.brightnessOf(context) == Brightness.dark;
-    final Color overlayColor =
-        isDarkMode ? const Color(0xFFc8c8c8) : const Color(0xFF000000);
+    final Color overlayColor = isDarkMode
+        ? const Color(0xFFc8c8c8)
+        : const Color(0xFF000000);
 
     final Widget? contrastedChild =
         child != null && !secondaryAnimation.isDismissed
-            ? Stack(
-                children: <Widget>[
-                  child,
-                  FadeTransition(
-                    opacity: opacityAnimation,
-                    child: ColoredBox(
-                      color: overlayColor,
-                      child: const SizedBox.expand(),
-                    ),
-                  ),
-                ],
-              )
-            : child;
+        ? Stack(
+            children: <Widget>[
+              child,
+              FadeTransition(
+                opacity: opacityAnimation,
+                child: ColoredBox(
+                  color: overlayColor,
+                  child: const SizedBox.expand(),
+                ),
+              ),
+            ],
+          )
+        : child;
 
     return SlideTransition(
       position: slideAnimation,
@@ -429,8 +430,8 @@ class _CupertinoSheetTransitionState extends State<CupertinoSheetTransition> {
   ) {
     final Animatable<Offset> offsetTween =
         CupertinoSheetRoute.hasParentSheet(context)
-            ? _kBottomUpTweenWhenCoveringOtherSheet
-            : _kBottomUpTween;
+        ? _kBottomUpTweenWhenCoveringOtherSheet
+        : _kBottomUpTween;
 
     final CurvedAnimation curvedAnimation = CurvedAnimation(
       parent: animation,
@@ -695,8 +696,8 @@ class _CupertinoDownGestureDetector<T> extends StatefulWidget {
 
 class _CupertinoDownGestureDetectorState<T>
     extends State<_CupertinoDownGestureDetector<T>> {
-  late _CupertinoDownGestureController<T> _downGestureController =
-      widget.onStartPopGesture();
+  late _CupertinoDownGestureController<T> _downGestureController = widget
+      .onStartPopGesture();
 
   late VerticalDragGestureRecognizer _recognizer =
       VerticalDragGestureRecognizer(debugOwner: this)
@@ -705,6 +706,10 @@ class _CupertinoDownGestureDetectorState<T>
         ..onEnd = _handleDragEnd;
 
   bool popGestureCancelled = false;
+
+  // Track velocity for quick swipe detection
+  DateTime? _lastUpdateTime;
+  double _estimatedVelocity = 0.0;
   bool sheetOpeningAnimationInProgress = true;
 
   @override
@@ -750,10 +755,53 @@ class _CupertinoDownGestureDetectorState<T>
         final details = n.dragDetails;
         if (details == null) return;
         if (_downGestureController.navigator.userGestureInProgress) {
+          // Track velocity manually
+          final now = DateTime.now();
+          if (_lastUpdateTime != null && details.delta.dy > 0) {
+            final timeDelta =
+                now.difference(_lastUpdateTime!).inMicroseconds / 1000000.0;
+            if (timeDelta > 0) {
+              // Calculate velocity in pixels per second
+              _estimatedVelocity = details.delta.dy / timeDelta;
+
+              // Check for quick swipe dismissal
+              final velocityInScreenHeights =
+                  _estimatedVelocity / context.size!.height;
+              if (velocityInScreenHeights >= _kMinFlingVelocity) {
+                // Quick swipe detected, trigger dismissal immediately
+                _handleDragEnd(
+                  DragEndDetails(
+                    velocity: Velocity(
+                      pixelsPerSecond: Offset(0, _estimatedVelocity),
+                    ),
+                  ),
+                );
+                return;
+              }
+            }
+          }
+          _lastUpdateTime = now;
+
           _handleDragUpdate(details);
           return;
         }
         _handleDragStart(DragStartDetails());
+
+        _lastUpdateTime = DateTime.now();
+        _estimatedVelocity = 0.0;
+
+        // Also check the built-in velocity if available
+        if (n.velocity > 0) {
+          final velocityInScreenHeights = n.velocity / context.size!.height;
+          if (velocityInScreenHeights >= _kMinFlingVelocity) {
+            _handleDragEnd(
+              DragEndDetails(
+                velocity: Velocity(pixelsPerSecond: Offset(0, n.velocity)),
+              ),
+            );
+            return;
+          }
+        }
       case final ScrollUpdateNotification n:
         final details = n.dragDetails;
         final scrollDelta = n.scrollDelta;
@@ -779,8 +827,23 @@ class _CupertinoDownGestureDetectorState<T>
           });
         }
         if (_downGestureController.navigator.userGestureInProgress) {
-          _handleDragEnd(DragEndDetails());
+          // Use the tracked velocity for the drag end
+          if (_estimatedVelocity > 0) {
+            _handleDragEnd(
+              DragEndDetails(
+                velocity: Velocity(
+                  pixelsPerSecond: Offset(0, _estimatedVelocity),
+                ),
+              ),
+            );
+          } else {
+            _handleDragEnd(DragEndDetails());
+          }
         }
+
+        // Reset velocity tracking
+        _lastUpdateTime = null;
+        _estimatedVelocity = 0.0;
     }
   }
 
@@ -789,11 +852,10 @@ class _CupertinoDownGestureDetectorState<T>
     return RawGestureDetector(
       gestures: <Type, GestureRecognizerFactory>{
         if (!sheetOpeningAnimationInProgress)
-          VerticalDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<
-              VerticalDragGestureRecognizer>(
-            () => _recognizer,
-            (_) {},
-          ),
+          VerticalDragGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<
+                VerticalDragGestureRecognizer
+              >(() => _recognizer, (_) {}),
       },
       child: NotificationListener<ScrollNotification>(
         onNotification: (final n) {
