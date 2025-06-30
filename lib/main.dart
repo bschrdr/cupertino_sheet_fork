@@ -50,7 +50,7 @@ class CustomSheet extends StatefulWidget {
 }
 
 class _CustomSheetState extends State<CustomSheet> {
-  bool listView = false;
+  bool listView = true;
   @override
   Widget build(BuildContext context) {
     return Scaffold(

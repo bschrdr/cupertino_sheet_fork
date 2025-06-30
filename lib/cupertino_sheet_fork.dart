@@ -700,7 +700,8 @@ class _CupertinoDownGestureDetector<T> extends StatefulWidget {
 
 class _CupertinoDownGestureDetectorState<T>
     extends State<_CupertinoDownGestureDetector<T>> {
-  late _CupertinoDownGestureController<T> _downGestureController;
+  late _CupertinoDownGestureController<T> _downGestureController =
+      widget.onStartPopGesture();
 
   late VerticalDragGestureRecognizer _recognizer =
       VerticalDragGestureRecognizer(debugOwner: this)
@@ -709,24 +710,26 @@ class _CupertinoDownGestureDetectorState<T>
         ..onEnd = _handleDragEnd;
 
   bool popGestureCancelled = false;
+  bool sheetOpeningAnimationInProgress = true;
 
   @override
-  void dispose() {
-    _recognizer.dispose();
+  void initState() {
+    super.initState();
+    _downGestureController.controller.addListener(_initialOpeningListener);
+  }
 
-    // If this is disposed during a drag, call navigator.didStopUserGesture.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_downGestureController.navigator.mounted &&
-          _downGestureController.controller.isCompleted) {
-        _downGestureController.navigator.didStopUserGesture();
-      }
-    });
-    super.dispose();
+  // will unlock sheetOpeningAnimationInProgress flag when the sheet initial
+  // opening animation complete.
+  void _initialOpeningListener() {
+    if (!sheetOpeningAnimationInProgress) return;
+    if (_downGestureController.controller.status == AnimationStatus.completed) {
+      sheetOpeningAnimationInProgress = false;
+      _downGestureController.controller.removeListener(_initialOpeningListener);
+    }
   }
 
   void _handleDragStart(DragStartDetails details) {
     assert(mounted);
-    _downGestureController = widget.onStartPopGesture();
     _downGestureController.navigator.didStartUserGesture();
   }
 
@@ -748,14 +751,14 @@ class _CupertinoDownGestureDetectorState<T>
 
   void handleScrollNotification(final ScrollNotification n) {
     switch (n) {
-      case final ScrollStartNotification n:
-        final details = n.dragDetails;
-        if (details == null) return;
-        _handleDragStart(n.dragDetails!);
       case final OverscrollNotification n:
         final details = n.dragDetails;
         if (details == null) return;
-        _handleDragUpdate(details);
+        if (_downGestureController.navigator.userGestureInProgress) {
+          _handleDragUpdate(details);
+          return;
+        }
+        _handleDragStart(DragStartDetails());
       case final ScrollUpdateNotification n:
         final details = n.dragDetails;
         final scrollDelta = n.scrollDelta;
@@ -772,15 +775,17 @@ class _CupertinoDownGestureDetectorState<T>
           setState(() {
             popGestureCancelled = false;
           });
+          _handleDragEnd(DragEndDetails());
         }
       case final ScrollEndNotification _:
         if (popGestureCancelled) {
-          print('leaving');
           setState(() {
             popGestureCancelled = false;
           });
         }
-        _handleDragEnd(DragEndDetails());
+        if (_downGestureController.navigator.userGestureInProgress) {
+          _handleDragEnd(DragEndDetails());
+        }
     }
   }
 
@@ -788,29 +793,43 @@ class _CupertinoDownGestureDetectorState<T>
   Widget build(final BuildContext context) {
     return RawGestureDetector(
       gestures: <Type, GestureRecognizerFactory>{
-        VerticalDragGestureRecognizer:
-            GestureRecognizerFactoryWithHandlers<VerticalDragGestureRecognizer>(
-          () => _recognizer,
-          (_) {},
-        ),
-      },
-      child: NotificationListener(
-        child: NotificationListener<ScrollNotification>(
-          onNotification: (final n) {
-            handleScrollNotification(n);
-            return true;
-          },
-          child: ScrollConfiguration(
-            behavior: ScrollBehavior().copyWith(
-              physics: popGestureCancelled
-                  ? _DampenedScrollPhysics(slowdown: true)
-                  : null,
-            ),
-            child: widget.child,
+        if (!sheetOpeningAnimationInProgress)
+          VerticalDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<
+              VerticalDragGestureRecognizer>(
+            () => _recognizer,
+            (_) {},
           ),
+      },
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (final n) {
+          if (sheetOpeningAnimationInProgress) return false;
+          handleScrollNotification(n);
+          return false;
+        },
+        child: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(
+            physics: popGestureCancelled
+                ? _DampenedScrollPhysics(slowdown: true)
+                : null,
+          ),
+          child: widget.child,
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _recognizer.dispose();
+
+    // If this is disposed during a drag, call navigator.didStopUserGesture.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_downGestureController.navigator.mounted &&
+          _downGestureController.controller.isCompleted) {
+        _downGestureController.navigator.didStopUserGesture();
+      }
+    });
+    super.dispose();
   }
 }
 
