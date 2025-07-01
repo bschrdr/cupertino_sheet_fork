@@ -730,7 +730,7 @@ class _CupertinoDownGestureDetectorState<T>
 
   void _handleDragStart(DragStartDetails details) {
     assert(mounted);
-    _downGestureController.navigator.didStartUserGesture();
+    _downGestureController.startUserGesture();
   }
 
   void _handleDragUpdate(DragUpdateDetails details) {
@@ -826,7 +826,7 @@ class _CupertinoDownGestureDetectorState<T>
             popGestureCancelled = false;
           });
         }
-        if (_downGestureController.navigator.userGestureInProgress) {
+        if (_downGestureController._userGestureInProgress) {
           // Use the tracked velocity for the drag end
           if (_estimatedVelocity > 0) {
             _handleDragEnd(
@@ -879,11 +879,10 @@ class _CupertinoDownGestureDetectorState<T>
   void dispose() {
     _recognizer.dispose();
 
-    // If this is disposed during a drag, call navigator.didStopUserGesture.
+    // If this is disposed during a drag, safely stop the user gesture.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_downGestureController.navigator.mounted &&
-          _downGestureController.controller.isCompleted) {
-        _downGestureController.navigator.didStopUserGesture();
+      if (_downGestureController.navigator.mounted) {
+        _downGestureController.stopUserGesture();
       }
     });
     super.dispose();
@@ -903,6 +902,25 @@ class _CupertinoDownGestureController<T> {
   final NavigatorState navigator;
   final ValueGetter<bool> getIsActive;
   final ValueGetter<bool> getIsCurrent;
+
+  // Track whether a user gesture is in progress
+  bool _userGestureInProgress = false;
+
+  /// Start tracking a user gesture
+  void startUserGesture() {
+    if (!_userGestureInProgress) {
+      _userGestureInProgress = true;
+      navigator.didStartUserGesture();
+    }
+  }
+
+  /// Stop tracking a user gesture
+  void stopUserGesture() {
+    if (_userGestureInProgress) {
+      _userGestureInProgress = false;
+      navigator.didStopUserGesture();
+    }
+  }
 
   /// The drag gesture has changed by [delta]. The total range of the drag
   /// should be 0.0 to 1.0.
@@ -972,13 +990,13 @@ class _CupertinoDownGestureController<T> {
       // depends on userGestureInProgress.
       // late AnimationStatusListener animationStatusCallback;
       void animationStatusCallback(AnimationStatus status) {
-        navigator.didStopUserGesture();
+        stopUserGesture();
         controller.removeStatusListener(animationStatusCallback);
       }
 
       controller.addStatusListener(animationStatusCallback);
     } else {
-      navigator.didStopUserGesture();
+      stopUserGesture();
     }
   }
 }
