@@ -6,7 +6,6 @@
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 // Smoothing factor applied to the device's top padding (which approximates the corner radius)
@@ -33,7 +32,7 @@ const double _kTopGapRatio = 0.08;
 // the top of the screen. Values found from eyeballing a simulator running iOS 18.0.
 final Animatable<Offset> _kBottomUpTween = Tween<Offset>(
   begin: const Offset(0.0, 1.0),
-  end: const Offset(0.0, _kTopGapRatio),
+  end: Offset.zero,
 );
 
 // Offset change for when a new sheet covers another sheet. '0.0' represents the
@@ -461,10 +460,7 @@ class _CupertinoSheetTransitionState extends State<CupertinoSheetTransition> {
         scale: _secondaryScaleAnimation,
         filterQuality: FilterQuality.medium,
         alignment: Alignment.topCenter,
-        child: ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-          child: child,
-        ),
+        child: child,
       ),
     );
   }
@@ -478,10 +474,7 @@ class _CupertinoSheetTransitionState extends State<CupertinoSheetTransition> {
           context,
           widget.primaryRouteAnimation,
           widget.linearTransition,
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: widget.child,
-          ),
+          widget.child,
         ),
       ),
     );
@@ -537,17 +530,19 @@ class CupertinoSheetRoute<T> extends PageRoute<T>
 
   @override
   Widget buildContent(BuildContext context) {
-    final double bottomPadding =
-        MediaQuery.sizeOf(context).height * _kTopGapRatio;
+    final double topPadding = MediaQuery.sizeOf(context).height * _kTopGapRatio;
     return MediaQuery.removePadding(
       context: context,
       removeTop: true,
       removeBottom: true,
       child: Padding(
-        padding: EdgeInsets.only(bottom: bottomPadding),
-        child: CupertinoUserInterfaceLevel(
-          data: CupertinoUserInterfaceLevelData.elevated,
-          child: _CupertinoSheetScope(child: builder(context)),
+        padding: EdgeInsets.only(top: topPadding),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+          child: CupertinoUserInterfaceLevel(
+            data: CupertinoUserInterfaceLevelData.elevated,
+            child: _CupertinoSheetScope(child: builder(context)),
+          ),
         ),
       ),
     );
@@ -812,7 +807,7 @@ class _CupertinoDownGestureDetectorState<T>
                 ? _DampenedScrollPhysics(slowdown: true)
                 : null,
           ),
-          child: widget.child,
+          child: RepaintBoundary(child: widget.child),
         ),
       ),
     );

@@ -54,48 +54,54 @@ class _CustomSheetState extends State<CustomSheet> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+      body: Stack(
         children: [
-          FloatingActionButton(
-            heroTag: 'toggle view',
-            onPressed: () {
-              setState(() {
-                listView = !listView;
-              });
-            },
-            child: Icon(listView ? Icons.square : Icons.list),
+          AnimatedSwitcher(
+            duration: Duration(milliseconds: 325),
+            switchInCurve: Curves.easeInOutQuad,
+            child: listView
+                ? ListView.builder(
+                    physics: BottomSheetScrollPhysics(),
+                    itemCount: 30,
+                    itemBuilder: (BuildContext context, int index) {
+                      return ListTile(
+                        title: Text('Item $index'),
+                      );
+                    },
+                  )
+                : Center(
+                    child: Text('non scrollable widget'),
+                  ),
           ),
-          FloatingActionButton(
-            heroTag: 'run nested sheet',
-            onPressed: () {
-              showCupertinoSheet(
-                context: context,
-                pageBuilder: (BuildContext context) {
-                  return const CustomSheet();
-                },
-              );
-            },
-            child: Icon(Icons.shelves),
+          Hero(
+            transitionOnUserGestures: true,
+            tag: 'FAB row',
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                IconButton(
+                  onPressed: () {
+                    setState(() {
+                      listView = !listView;
+                    });
+                  },
+                  icon: Icon(listView ? Icons.square : Icons.list),
+                ),
+                IconButton(
+                  onPressed: () {
+                    showCupertinoSheet(
+                      context: context,
+                      pageBuilder: (BuildContext context) {
+                        return const CustomSheet();
+                      },
+                    );
+                  },
+                  icon: Icon(Icons.shelves),
+                ),
+              ],
+            ),
           ),
         ],
-      ),
-      body: AnimatedSwitcher(
-        duration: Duration(milliseconds: 325),
-        switchInCurve: Curves.easeInOutQuad,
-        child: listView
-            ? ListView.builder(
-                physics: BottomSheetScrollPhysics(),
-                itemCount: 30,
-                itemBuilder: (BuildContext context, int index) {
-                  return ListTile(
-                    title: Text('Item $index'),
-                  );
-                },
-              )
-            : Center(
-                child: Text('non scrollable widget'),
-              ),
       ),
     );
   }
